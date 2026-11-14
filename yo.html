@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lantern Catch</title>
+<style>
+:root{--bg:#10192e;--ink:#f3ead7;--glow:#ffb84d;--rock:#7a8ab0;--bad:#ff6b5e;color-scheme:dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:Georgia,"Times New Roman",serif;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none}
+#c{display:block;width:100%;height:100%}
+#ui{position:fixed;left:0;right:0;top:env(safe-area-inset-top,0px);display:flex;justify-content:space-between;padding:12px 18px;font-size:20px;pointer-events:none}
+#msg{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;background:rgba(16,25,46,.78)}
+#msg h1{font-size:44px;margin:0 0 8px;font-weight:700;letter-spacing:.5px}
+#msg p{margin:4px 0;font-size:18px;max-width:300px;line-height:1.4}
+#msg b{display:inline-block;margin-top:22px;padding:12px 28px;border-radius:30px;background:var(--glow);color:#10192e;font-size:18px}
+.hide{display:none!important}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui"><span id="sc">0</span><span id="lv"></span></div>
+<div id="msg">
+<h1 id="t">Lantern Catch</h1>
+<p id="d">Drag to move the lantern. Catch the fireflies, dodge the falling stones.</p>
+<p id="b2"></p>
+<b>Tap to play</b>
+</div>
+<script>
+const cv=document.getElementById('c'),x=cv.getContext('2d');
+const sc=document.getElementById('sc'),lv=document.getElementById('lv'),msg=document.getElementById('msg');
+let W,H,dpr;
+function size(){dpr=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;cv.width=W*dpr;cv.height=H*dpr;x.setTransform(dpr,0,0,dpr,0,0)}
+addEventListener('resize',size);size();
+let best=0;try{best=+localStorage.getItem('lc-best')||0}catch(e){}
+let px=W/2,tx=W/2,items=[],score=0,lives=3,t=0,spawn=0,run=false,flash=0,stars=[];
+for(let i=0;i<50;i++)stars.push([Math.random(),Math.random(),Math.random()*1.5+.3]);
+function move(e){const p=e.touches?e.touches[0]:e;tx=p.clientX}
+addEventListener('pointermove',move);
+addEventListener('touchmove',move,{passive:true});
+addEventListener('keydown',e=>{if(e.key==='ArrowLeft')tx-=60;if(e.key==='ArrowRight')tx+=60;if(!run&&(e.key===' '||e.key==='Enter'))start()});
+msg.addEventListener('pointerdown',e=>{e.stopPropagation();start()});
+function start(){score=0;lives=3;items=[];t=0;spawn=0;run=true;msg.classList.add('hide');hud()}
+function hud(){sc.textContent=score;lv.textContent='♥'.repeat(Math.max(lives,0))}
+function end(){run=false;if(score>best){best=score;try{localStorage.setItem('lc-best',best)}catch(e){}}
+document.getElementById('t').textContent='Lights out';
+document.getElementById('d').textContent='You caught '+score+' fireflies.';
+document.getElementById('b2').textContent='Best: '+best;
+msg.querySelector('b').textContent='Play again';msg.classList.remove('hide')}
+function add(){const bad=Math.random()<Math.min(.25+t/4000,.5);
+items.push({x:24+Math.random()*(W-48),y:-20,bad,v:(1.8+t/900)*(.8+Math.random()*.5),r:bad?15:9,ph:Math.random()*6})}
+function step(){
+t++;px+=(Math.max(30,Math.min(W-30,tx))-px)*.25;
+spawn--;if(spawn<=0){add();spawn=Math.max(18,50-t/40)}
+const ly=H-80;
+for(const o of items){o.y+=o.v;o.ph+=.1;
+if(!o.bad)o.x+=Math.sin(o.ph)*.7;
+if(Math.abs(o.x-px)<o.r+26&&Math.abs(o.y-ly)<o.r+24){o.dead=1;
+if(o.bad){lives--;flash=12}else score++;hud()}
+else if(o.y>H+30){o.dead=1}}
+items=items.filter(o=>!o.dead);
+if(lives<=0)end()}
+function draw(){
+x.fillStyle='#10192e';x.fillRect(0,0,W,H);
+for(const s of stars){x.fillStyle='rgba(243,234,215,'+(.25+s[2]/4)+')';x.fillRect(s[0]*W,(s[1]*H+t*s[2]*.1)%H,s[2],s[2])}
+for(const o of items){
+if(o.bad){x.fillStyle='#7a8ab0';x.beginPath();
+for(let i=0;i<7;i++){const a=i/7*6.283+o.ph*.3,r=i%2?o.r*.7:o.r*1.15;x.lineTo(o.x+Math.cos(a)*r,o.y+Math.sin(a)*r)}
+x.closePath();x.fill()}
+else{const g=x.createRadialGradient(o.x,o.y,0,o.x,o.y,o.r*3);g.addColorStop(0,'rgba(255,225,130,1)');g.addColorStop(.3,'rgba(255,184,77,.5)');g.addColorStop(1,'rgba(255,184,77,0)');
+x.fillStyle=g;x.beginPath();x.arc(o.x,o.y,o.r*3,0,6.283);x.fill()}}
+const ly=H-80;
+const g=x.createRadialGradient(px,ly,0,px,ly,90);g.addColorStop(0,'rgba(255,184,77,.35)');g.addColorStop(1,'rgba(255,184,77,0)');
+x.fillStyle=g;x.beginPath();x.arc(px,ly,90,0,6.283);x.fill();
+x.strokeStyle='#f3ead7';x.lineWidth=3;x.beginPath();x.moveTo(px-12,ly-26);x.quadraticCurveTo(px,ly-44,px+12,ly-26);x.stroke();
+x.fillStyle='#ffb84d';x.beginPath();x.roundRect(px-18,ly-26,36,46,10);x.fill();
+x.fillStyle='#fff3c4';x.beginPath();x.ellipse(px,ly-3,7,12,0,0,6.283);x.fill();
+if(flash>0){x.fillStyle='rgba(255,107,94,'+flash/30+')';x.fillRect(0,0,W,H);flash--}}
+function loop(){if(run)step();draw();requestAnimationFrame(loop)}
+loop();
+</script>
+</body>
+</html>
